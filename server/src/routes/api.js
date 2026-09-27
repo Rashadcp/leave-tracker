@@ -13,7 +13,6 @@ import {
 } from '../models/models.js';
 import {
   notifyHRNewLeaveRequest,
-  notifyHRNewLateRequest,
   notifyEmployeeDecision,
   sendPasswordResetEmail
 } from '../utils/mailer.js';
@@ -658,38 +657,44 @@ router.post('/requests/late', async (req, res) => {
       return res.status(400).json({ error: 'Please provide all required fields' });
     }
 
+    const { year, month } = getPeriod();
     const newRequest = await LateRequest.create({
       userId,
       date,
       expectedTime,
       reason,
-      status: 'pending'
+      status: 'approved',
+      approvalDate: new Date(),
+      approverComment: 'Late arrival recorded automatically.'
     });
+
+    let lateAllocation = await MonthlyLateAllocation.findOne({ userId, year, month });
+    if (!lateAllocation) {
+      lateAllocation = await MonthlyLateAllocation.create({
+        userId,
+        year,
+        month,
+        allottedCount: 3,
+        usedCount: 0,
+        remainingCount: 3,
+        allocatedBy: 'Automatic Late Policy'
+      });
+    }
+    lateAllocation.usedCount += 1;
+    lateAllocation.remainingCount = Math.max(0, lateAllocation.allottedCount - lateAllocation.usedCount);
+    await lateAllocation.save();
 
     await ApprovalLog.create({
       requestId: newRequest._id,
       requestType: 'late',
       actorId: userId,
-      action: 'submitted',
-      comment: 'Late-arrival request submitted by staff'
+      action: 'approved',
+      comment: 'Late arrival recorded automatically; no approval required.'
     });
-
-    // Notify HR / Approver via Gmail
-    (async () => {
-      try {
-        const employee = await User.findById(userId);
-        const approver = employee?.managerId 
-          ? await User.findById(employee.managerId) 
-          : await User.findOne({ role: 'admin' });
-        await notifyHRNewLateRequest({ employee, approver, lateRequest: newRequest });
-      } catch (mErr) {
-        console.error('[Mail Error] Failed to send late arrival notification:', mErr.message);
-      }
-    })();
 
     res.status(201).json({
       success: true,
-      message: 'Late arrival report submitted successfully!',
+      message: 'Late arrival recorded successfully. No approval is required.',
       request: newRequest
     });
   } catch (err) {
@@ -756,14 +761,10 @@ router.get('/approvals/pending', async (req, res) => {
       .populate('leaveTypeId')
       .sort({ createdAt: -1 });
 
-    const pendingLates = await LateRequest.find({ status: 'pending' })
-      .populate('userId', 'name email employeeCode department designation avatar')
-      .sort({ createdAt: -1 });
-
     res.json({
       leaves: pendingLeaves,
-      lates: pendingLates,
-      totalCount: pendingLeaves.length + pendingLates.length
+      lates: [],
+      totalCount: pendingLeaves.length
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
