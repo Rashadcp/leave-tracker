@@ -29,6 +29,13 @@ const getPeriod = () => {
   };
 };
 
+// Once HR switches to the simple policy, the system uses one shared Leave
+// category instead of separate Casual/Sick/etc. categories.
+const getActiveLeaveTypes = async () => {
+  const generalLeave = await LeaveType.findOne({ code: 'GENERAL' });
+  return generalLeave ? [generalLeave] : LeaveType.find();
+};
+
 // Auth: Employee Registration (Immediate access - no approvals needed)
 router.post('/auth/register', async (req, res) => {
   try {
@@ -61,7 +68,7 @@ router.post('/auth/register', async (req, res) => {
     // Automatically initialize leave & late allocations for current period
     const { year, month } = getPeriod();
     const [types, policy] = await Promise.all([
-      LeaveType.find(),
+      getActiveLeaveTypes(),
       AllocationPolicy.findOne()
     ]);
 
@@ -127,7 +134,7 @@ router.post('/auth/login', async (req, res) => {
       user.status = 'active';
       await user.save();
       const { year, month } = getPeriod();
-      const types = await LeaveType.find();
+      const types = await getActiveLeaveTypes();
       for (const t of types) {
         const existingAlloc = await MonthlyAllocation.findOne({ userId: user._id, year, month, leaveTypeId: t._id });
         if (!existingAlloc) {
@@ -145,13 +152,15 @@ router.post('/auth/login', async (req, res) => {
       }
       const existingLate = await MonthlyLateAllocation.findOne({ userId: user._id, year, month });
       if (!existingLate) {
+        const policy = await AllocationPolicy.findOne();
+        const defaultLateCount = policy?.monthlyLateCount ?? 3;
         await MonthlyLateAllocation.create({
           userId: user._id,
           year,
           month,
-          allottedCount: 3,
+          allottedCount: defaultLateCount,
           usedCount: 0,
-          remainingCount: 3,
+          remainingCount: defaultLateCount,
           allocatedBy: 'System Auto-Activation'
         });
       }
@@ -210,7 +219,7 @@ router.post('/admin/approve-user/:id', async (req, res) => {
       await user.save();
 
       // Automatically initialize their monthly allocations for this month
-      const types = await LeaveType.find();
+      const types = await getActiveLeaveTypes();
       for (const t of types) {
         const existingAlloc = await MonthlyAllocation.findOne({ userId: user._id, year, month, leaveTypeId: t._id });
         if (!existingAlloc) {
@@ -229,13 +238,15 @@ router.post('/admin/approve-user/:id', async (req, res) => {
 
       const existingLate = await MonthlyLateAllocation.findOne({ userId: user._id, year, month });
       if (!existingLate) {
+        const policy = await AllocationPolicy.findOne();
+        const defaultLateCount = policy?.monthlyLateCount ?? 3;
         await MonthlyLateAllocation.create({
           userId: user._id,
           year,
           month,
-          allottedCount: 3,
+          allottedCount: defaultLateCount,
           usedCount: 0,
-          remainingCount: 3,
+          remainingCount: defaultLateCount,
           allocatedBy: 'HR Approval Default'
         });
       }
@@ -320,7 +331,7 @@ router.get('/users', async (req, res) => {
 // 3. Leave types
 router.get('/leave-types', async (req, res) => {
   try {
-    const types = await LeaveType.find().sort({ name: 1 });
+    const types = await getActiveLeaveTypes();
     res.json(types);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -487,7 +498,7 @@ router.get('/dashboard/:userId', async (req, res) => {
 
     // Ensure all active LeaveTypes are allocated for this user for current month
     const [types, policy] = await Promise.all([
-      LeaveType.find(),
+      getActiveLeaveTypes(),
       AllocationPolicy.findOne()
     ]);
 
@@ -1003,7 +1014,7 @@ router.get('/admin/consumption', async (req, res) => {
 // 13. HR Admin: Allot or update monthly leave quotas and late grace allowances
 router.post('/admin/allocate', async (req, res) => {
   try {
-    const { userId, applyToAll, leaveTypeId, allottedDays, allocations, lateCount, allocatedBy } = req.body;
+    const { userId, applyToAll, leaveTypeId, allottedDays, allocations, leaveCount, lateCount, allocatedBy } = req.body;
     const { year, month } = getPeriod();
 
     const isGlobal = applyToAll === true || userId === 'all' || !userId;
@@ -1011,6 +1022,72 @@ router.post('/admin/allocate', async (req, res) => {
     if (isGlobal) {
       // Apply to ALL staff employees across the organization
       const staffUsers = await User.find({ role: 'staff' });
+
+      // Simple company policy: one shared Leave count, not Casual/Sick/etc.
+      if (leaveCount !== undefined) {
+        const targetDays = Math.max(0, Number(leaveCount) || 0);
+        let generalLeave = await LeaveType.findOne({ code: 'GENERAL' });
+        if (!generalLeave) {
+          generalLeave = await LeaveType.create({
+            name: 'Leave',
+            code: 'GENERAL',
+            defaultMonthlyDays: targetDays,
+            color: '#2563EB',
+            description: 'Company monthly leave allowance'
+          });
+        } else {
+          generalLeave.defaultMonthlyDays = targetDays;
+          await generalLeave.save();
+        }
+
+        // Move approved usage from legacy categories into the one Leave balance.
+        // Clearing `takenDays` after the move makes this operation safe to repeat.
+        const legacyUsage = await MonthlyAllocation.aggregate([
+          {
+            $match: {
+              userId: { $in: staffUsers.map(user => user._id) },
+              year,
+              month,
+              leaveTypeId: { $ne: generalLeave._id }
+            }
+          },
+          { $group: { _id: '$userId', takenDays: { $sum: '$takenDays' } } }
+        ]);
+        const legacyUsageByUser = new Map(legacyUsage.map(item => [String(item._id), item.takenDays || 0]));
+
+        // Pending requests must also point to the active Leave type. Otherwise
+        // approving one after this migration would charge a hidden old category.
+        await LeaveRequest.updateMany(
+          { userId: { $in: staffUsers.map(user => user._id) }, status: 'pending', leaveTypeId: { $ne: generalLeave._id } },
+          { $set: { leaveTypeId: generalLeave._id } }
+        );
+
+        await MonthlyAllocation.updateMany(
+          { userId: { $in: staffUsers.map(user => user._id) }, year, month, leaveTypeId: { $ne: generalLeave._id } },
+          { $set: { allottedDays: 0, takenDays: 0, remainingDays: 0, allocatedBy: allocatedBy || 'HR Company-wide Leave Policy' } }
+        );
+
+        for (const user of staffUsers) {
+          let allocation = await MonthlyAllocation.findOne({ userId: user._id, year, month, leaveTypeId: generalLeave._id });
+          const carriedTakenDays = legacyUsageByUser.get(String(user._id)) || 0;
+          if (allocation) {
+            allocation.allottedDays = targetDays;
+            allocation.takenDays += carriedTakenDays;
+            allocation.remainingDays = Math.max(0, targetDays - allocation.takenDays);
+            allocation.allocatedBy = allocatedBy || 'HR Company-wide Leave Policy';
+            await allocation.save();
+          } else {
+            await MonthlyAllocation.create({
+              userId: user._id, year, month, leaveTypeId: generalLeave._id,
+              allottedDays: targetDays, takenDays: carriedTakenDays,
+              remainingDays: Math.max(0, targetDays - carriedTakenDays),
+              allocatedBy: allocatedBy || 'HR Company-wide Leave Policy'
+            });
+          }
+        }
+
+        await AllocationPolicy.updateMany({}, { monthlyLeaveDays: targetDays });
+      }
 
       // 1. Process leave allocations for all staff
       if (Array.isArray(allocations)) {
@@ -1077,7 +1154,7 @@ router.post('/admin/allocate', async (req, res) => {
 
       return res.json({
         success: true,
-        message: `Quotas successfully applied to all ${staffUsers.length} employees!`
+        message: `Monthly limits successfully applied to all ${staffUsers.length} employees!`
       });
     }
 

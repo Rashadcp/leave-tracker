@@ -1,21 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
 
-let attendanceCache = null;
-
 const Extra = ({ leave, late }) => {
   if (!leave && !late) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
   return <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{leave ? `+${leave}d` : ''}{leave && late ? ' · ' : ''}{late ? `+${late} late` : ''}</span>;
 };
 
 export const TrackingTab = () => {
-  const [consumptionData, setConsumptionData] = useState(attendanceCache);
-  const [loading, setLoading] = useState(!attendanceCache);
+  const [consumptionData, setConsumptionData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (attendanceCache) return;
     api.getAdminConsumption()
-      .then(consumption => { attendanceCache = consumption; setConsumptionData(consumption); })
+      .then(consumption => setConsumptionData(consumption))
       .catch(error => console.error('Error loading attendance:', error))
       .finally(() => setLoading(false));
   }, []);

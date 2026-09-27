@@ -52,7 +52,7 @@ export const BottomNav = ({ activeTab, onTabChange, role, pendingCount }) => {
           onClick={() => onTabChange('quotas')}
         >
           <Sliders size={18} />
-          <span>Leave Limits</span>
+          <span>Limits</span>
         </button>
       </nav>
     );

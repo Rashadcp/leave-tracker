@@ -20,7 +20,7 @@ export const Header = ({
         badge: pendingCount > 0 ? pendingCount : null
       },
       { id: 'tracking', label: 'Attendance' },
-      { id: 'quotas', label: 'Leave Limits' }
+      { id: 'quotas', label: 'Monthly Limits' }
     ];
   } else if (isApprover) {
     navItems = [
