@@ -113,12 +113,20 @@ export function App() {
     setTimeout(() => setNotification(''), 3500);
   };
 
+  const navigateTab = (tab) => {
+    const safeTab = getAllowedTab(currentUser, tab);
+    setActiveTab(safeTab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', safeTab);
+    window.history.replaceState({}, '', `${url.pathname}?${url.searchParams.toString()}${url.hash}`);
+  };
+
   const handleNavigateApply = (mode) => {
     if (mode === 'history') {
-      setActiveTab('requests');
+      navigateTab('requests');
     } else {
       setApplyInitialMode(mode);
-      setActiveTab('apply');
+      navigateTab('apply');
     }
   };
 
@@ -140,7 +148,7 @@ export function App() {
       <Header 
         currentUser={currentUser}
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
+                onTabChange={navigateTab}
         pendingCount={pendingCount}
         onLogout={handleLogout}
       />
@@ -160,7 +168,7 @@ export function App() {
               <ApprovalsTab 
                 currentUser={currentUser}
                 onActionSuccess={handleActionSuccess}
-                onNavigateTab={(tab) => setActiveTab(tab)}
+                onNavigateTab={navigateTab}
               />
             )}
 
@@ -195,7 +203,7 @@ export function App() {
                 initialMode={applyInitialMode}
                 onSuccess={(msg) => {
                   handleActionSuccess(msg);
-                  setActiveTab('requests');
+                  navigateTab('requests');
                 }}
               />
             )}
@@ -211,7 +219,7 @@ export function App() {
               <ApprovalsTab 
                 currentUser={currentUser}
                 onActionSuccess={handleActionSuccess}
-                onNavigateTab={(tab) => setActiveTab(tab)}
+                onNavigateTab={navigateTab}
               />
             )}
           </>
@@ -221,7 +229,7 @@ export function App() {
       {/* Mobile Bottom Navigation */}
       <BottomNav 
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
+        onTabChange={navigateTab}
         role={currentUser?.role}
         pendingCount={pendingCount}
       />
