@@ -19,8 +19,8 @@ export const Header = ({
         label: 'Approvals',
         badge: pendingCount > 0 ? pendingCount : null
       },
-      { id: 'quotas', label: 'Leave Limits' },
-      { id: 'tracking', label: 'Attendance' }
+      { id: 'tracking', label: 'Attendance' },
+      { id: 'quotas', label: 'Leave Limits' }
     ];
   } else if (isApprover) {
     navItems = [

@@ -40,19 +40,19 @@ export const BottomNav = ({ activeTab, onTabChange, role, pendingCount }) => {
         </button>
 
         <button 
-          className={`mobile-nav-item ${activeTab === 'quotas' ? 'active' : ''}`}
-          onClick={() => onTabChange('quotas')}
-        >
-          <Sliders size={18} />
-          <span>Leave Limits</span>
-        </button>
-
-        <button 
           className={`mobile-nav-item ${activeTab === 'tracking' ? 'active' : ''}`}
           onClick={() => onTabChange('tracking')}
         >
           <Activity size={18} />
           <span>Attendance</span>
+        </button>
+
+        <button 
+          className={`mobile-nav-item ${activeTab === 'quotas' ? 'active' : ''}`}
+          onClick={() => onTabChange('quotas')}
+        >
+          <Sliders size={18} />
+          <span>Leave Limits</span>
         </button>
       </nav>
     );
