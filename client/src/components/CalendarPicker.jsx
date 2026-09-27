@@ -167,22 +167,22 @@ export const CalendarPicker = ({
       background: '#FFFFFF',
       border: '1px solid var(--border)',
       borderRadius: '12px',
-      padding: '16px',
+      padding: '12px',
       boxShadow: 'var(--shadow-sm)',
       userSelect: 'none',
-      marginBottom: '16px'
+      marginBottom: '12px'
     }}>
       {/* Header: Month / Year & Navigation */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: '14px'
+        marginBottom: '10px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{
-            width: '28px',
-            height: '28px',
+            width: '24px',
+            height: '24px',
             borderRadius: '6px',
             background: 'var(--primary-subtle)',
             color: 'var(--primary)',
@@ -190,10 +190,10 @@ export const CalendarPicker = ({
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <CalendarIcon size={15} />
+            <CalendarIcon size={13} />
           </div>
           <div>
-            <h3 style={{ fontSize: '0.96rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+            <h3 style={{ fontSize: '0.88rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
               {MONTH_NAMES[viewMonth]} {viewYear}
             </h3>
           </div>
@@ -226,8 +226,8 @@ export const CalendarPicker = ({
               background: '#FFFFFF',
               border: '1px solid var(--border)',
               borderRadius: '6px',
-              width: '28px',
-              height: '28px',
+              width: '24px',
+              height: '24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -235,7 +235,7 @@ export const CalendarPicker = ({
               color: 'var(--text-secondary)'
             }}
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={14} />
           </button>
           <button
             type="button"
@@ -245,8 +245,8 @@ export const CalendarPicker = ({
               background: '#FFFFFF',
               border: '1px solid var(--border)',
               borderRadius: '6px',
-              width: '28px',
-              height: '28px',
+              width: '24px',
+              height: '24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -254,7 +254,7 @@ export const CalendarPicker = ({
               color: 'var(--text-secondary)'
             }}
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={14} />
           </button>
         </div>
       </div>
@@ -274,7 +274,7 @@ export const CalendarPicker = ({
               fontSize: '0.72rem',
               fontWeight: 700,
               color: idx === 0 || idx === 6 ? '#EF4444' : 'var(--text-muted)',
-              padding: '4px 0'
+              padding: '2px 0'
             }}
           >
             {day}
@@ -290,7 +290,7 @@ export const CalendarPicker = ({
       }}>
         {/* Leading empty spaces for offset */}
         {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-          <div key={`empty-${i}`} style={{ height: '36px' }} />
+          <div key={`empty-${i}`} style={{ height: '30px' }} />
         ))}
 
         {/* Days of the month */}
@@ -343,14 +343,14 @@ export const CalendarPicker = ({
                 if (rangeAnchor) setHoverDate(dateStr);
               }}
               style={{
-                height: '36px',
+                height: '30px',
                 padding: '0',
                 border: isToday && !isSelected && !isInRange ? '1px solid #111827' : 'none',
                 borderRadius,
                 background,
                 color: isSelected ? '#FFFFFF' : isSunday && !isInRange ? '#EF4444' : color,
                 fontWeight: isSelected || isToday ? 700 : fontWeight,
-                fontSize: '0.84rem',
+                fontSize: '0.76rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -381,8 +381,8 @@ export const CalendarPicker = ({
         <div style={{
           display: 'flex',
           gap: '6px',
-          marginTop: '12px',
-          paddingTop: '10px',
+          marginTop: '8px',
+          paddingTop: '8px',
           borderTop: '1px solid var(--border)',
           flexWrap: 'wrap'
         }}>
@@ -464,8 +464,8 @@ export const CalendarPicker = ({
 
       {/* Selected Info Banner */}
       <div style={{
-        marginTop: '10px',
-        padding: '8px 12px',
+        marginTop: '8px',
+        padding: '6px 10px',
         background: '#F8FAFC',
         borderRadius: '8px',
         border: '1px solid #E2E8F0',
@@ -505,7 +505,7 @@ export const CalendarPicker = ({
           fontSize: '0.74rem',
           color: 'var(--text-secondary)',
           fontWeight: 500,
-          marginTop: '6px',
+          marginTop: '4px',
           textAlign: 'center'
         }}>
           Click a second date to complete the range (or click same date for 1 day)
