@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import {
   User,
   LeaveType,
@@ -13,7 +14,8 @@ import {
 import {
   notifyHRNewLeaveRequest,
   notifyHRNewLateRequest,
-  notifyEmployeeDecision
+  notifyEmployeeDecision,
+  sendPasswordResetEmail
 } from '../utils/mailer.js';
 
 const router = express.Router();
@@ -77,18 +79,14 @@ router.post('/auth/register', async (req, res) => {
       });
     }
 
-    const defaultLateHours = policy?.monthlyLateHours ?? 3.0;
     const defaultLateCount = policy?.monthlyLateCount ?? 3;
 
     await MonthlyLateAllocation.create({
       userId: newUser._id,
       year,
       month,
-      allottedHours: defaultLateHours,
       allottedCount: defaultLateCount,
-      usedHours: 0,
       usedCount: 0,
-      remainingHours: defaultLateHours,
       remainingCount: defaultLateCount,
       allocatedBy: 'Registration Default'
     });
@@ -152,11 +150,8 @@ router.post('/auth/login', async (req, res) => {
           userId: user._id,
           year,
           month,
-          allottedHours: 3.0,
           allottedCount: 3,
-          usedHours: 0,
           usedCount: 0,
-          remainingHours: 3.0,
           remainingCount: 3,
           allocatedBy: 'System Auto-Activation'
         });
@@ -239,11 +234,8 @@ router.post('/admin/approve-user/:id', async (req, res) => {
           userId: user._id,
           year,
           month,
-          allottedHours: 3.0,
           allottedCount: 3,
-          usedHours: 0,
           usedCount: 0,
-          remainingHours: 3.0,
           remainingCount: 3,
           allocatedBy: 'HR Approval Default'
         });
@@ -260,10 +252,10 @@ router.post('/admin/approve-user/:id', async (req, res) => {
   }
 });
 
-// Auth: Forgot Password
+// Auth: Request a time-limited password reset link.
 router.post('/auth/forgot-password', async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
+    const { email } = req.body;
     if (!email) {
       return res.status(400).json({ error: 'Please provide your registered email' });
     }
@@ -271,16 +263,45 @@ router.post('/auth/forgot-password', async (req, res) => {
     const cleanEmail = email.trim().toLowerCase();
     const user = await User.findOne({ email: { $regex: new RegExp(`^${cleanEmail}$`, 'i') } });
 
-    if (!user) {
-      return res.status(404).json({ error: 'No user account found with this email address' });
+    // Do not reveal whether an email address is registered.
+    if (user) {
+      const token = crypto.randomBytes(32).toString('hex');
+      user.passwordResetToken = crypto.createHash('sha256').update(token).digest('hex');
+      user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      await user.save();
+      await sendPasswordResetEmail({ employee: user, token });
     }
 
-    user.password = newPassword || 'password123';
-    await user.save();
+    res.json({ success: true, message: 'If this email is registered, a password reset link has been sent.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
+// Auth: Complete password reset using the one-time email token.
+router.post('/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword || newPassword.length < 8) {
+      return res.status(400).json({ error: 'Use the reset link and a password of at least 8 characters.' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      passwordResetToken: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() }
+    });
+    if (!user) {
+      return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
+    }
+
+    user.password = newPassword;
+    user.passwordResetToken = null;
+    user.passwordResetExpiresAt = null;
+    await user.save();
     res.json({
       success: true,
-      message: 'Password has been updated. You can now login with your new password.'
+      message: 'Password updated. You can now sign in.'
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -496,7 +517,6 @@ router.get('/dashboard/:userId', async (req, res) => {
     leaveAllocations = leaveAllocations.filter(a => a.leaveTypeId);
 
     // Late allocation for current month
-    const defaultLateHours = policy?.monthlyLateHours ?? 3.0;
     const defaultLateCount = policy?.monthlyLateCount ?? 3;
 
     let lateAllocation = await MonthlyLateAllocation.findOne({ userId, year, month });
@@ -505,19 +525,14 @@ router.get('/dashboard/:userId', async (req, res) => {
         userId,
         year,
         month,
-        allottedHours: defaultLateHours,
         allottedCount: defaultLateCount,
-        usedHours: 0,
         usedCount: 0,
-        remainingHours: defaultLateHours,
         remainingCount: defaultLateCount,
         allocatedBy: 'Policy Sync'
       });
-    } else if (lateAllocation.usedHours === 0 && lateAllocation.usedCount === 0) {
-      if (lateAllocation.allottedHours !== defaultLateHours || lateAllocation.allottedCount !== defaultLateCount) {
-        lateAllocation.allottedHours = defaultLateHours;
+    } else if (lateAllocation.usedCount === 0) {
+      if (lateAllocation.allottedCount !== defaultLateCount) {
         lateAllocation.allottedCount = defaultLateCount;
-        lateAllocation.remainingHours = defaultLateHours;
         lateAllocation.remainingCount = defaultLateCount;
         await lateAllocation.save();
       }
@@ -545,9 +560,6 @@ router.get('/dashboard/:userId', async (req, res) => {
         totalAllottedDays,
         totalTakenDays,
         totalRemainingDays,
-        lateAllottedHours: lateAllocation.allottedHours,
-        lateUsedHours: lateAllocation.usedHours,
-        lateRemainingHours: lateAllocation.remainingHours,
         lateRemainingCount: lateAllocation.remainingCount,
         pendingCount
       },
@@ -641,7 +653,7 @@ router.post('/requests/leave', async (req, res) => {
 // 7. Submit Late Request
 router.post('/requests/late', async (req, res) => {
   try {
-    const { userId, date, expectedTime, lateMinutes, reason } = req.body;
+    const { userId, date, expectedTime, reason } = req.body;
     if (!userId || !date || !expectedTime || !reason) {
       return res.status(400).json({ error: 'Please provide all required fields' });
     }
@@ -650,7 +662,6 @@ router.post('/requests/late', async (req, res) => {
       userId,
       date,
       expectedTime,
-      lateMinutes: Number(lateMinutes) || 30,
       reason,
       status: 'pending'
     });
@@ -837,10 +848,7 @@ router.post('/approvals/:id/decision', async (req, res) => {
       if (action === 'approved') {
         const lateAlloc = await MonthlyLateAllocation.findOne({ userId: late.userId, year, month });
         if (lateAlloc) {
-          const hours = (late.lateMinutes || 30) / 60;
-          lateAlloc.usedHours += hours;
           lateAlloc.usedCount += 1;
-          lateAlloc.remainingHours = Math.max(0, lateAlloc.allottedHours - lateAlloc.usedHours);
           lateAlloc.remainingCount = Math.max(0, lateAlloc.allottedCount - lateAlloc.usedCount);
           await lateAlloc.save();
         }
@@ -911,9 +919,10 @@ router.get('/admin/consumption', async (req, res) => {
     ]);
 
     const userIds = users.map(u => u._id);
+    const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
 
     // Parallel bulk queries for all users in one round-trip
-    const [allAllocs, allLateAllocs, pendingLeavesGroup, pendingLatesGroup] = await Promise.all([
+    const [allAllocs, allLateAllocs, pendingLeavesGroup, pendingLatesGroup, halfDaysGroup] = await Promise.all([
       MonthlyAllocation.find({ userId: { $in: userIds }, year, month }).populate('leaveTypeId').lean(),
       MonthlyLateAllocation.find({ userId: { $in: userIds }, year, month }).lean(),
       LeaveRequest.aggregate([
@@ -922,6 +931,10 @@ router.get('/admin/consumption', async (req, res) => {
       ]),
       LateRequest.aggregate([
         { $match: { userId: { $in: userIds }, status: 'pending' } },
+        { $group: { _id: '$userId', count: { $sum: 1 } } }
+      ]),
+      LeaveRequest.aggregate([
+        { $match: { userId: { $in: userIds }, status: 'approved', isHalfDay: true, startDate: { $regex: `^${monthPrefix}` } } },
         { $group: { _id: '$userId', count: { $sum: 1 } } }
       ])
     ]);
@@ -941,11 +954,12 @@ router.get('/admin/consumption', async (req, res) => {
 
     const pendingLeaveMap = new Map(pendingLeavesGroup.map(g => [String(g._id), g.count]));
     const pendingLateMap = new Map(pendingLatesGroup.map(g => [String(g._id), g.count]));
+    const halfDayMap = new Map(halfDaysGroup.map(g => [String(g._id), g.count]));
 
     const report = users.map(u => {
       const uid = String(u._id);
       const allocs = allocMap.get(uid) || [];
-      const lateAlloc = lateMap.get(uid) || { allottedHours: 3, usedHours: 0, remainingHours: 3, usedCount: 0, remainingCount: 3 };
+      const lateAlloc = lateMap.get(uid) || { allottedCount: 3, usedCount: 0, remainingCount: 3 };
 
       const totalAllotted = allocs.reduce((a, b) => a + (b.allottedDays || 0), 0);
       const totalTaken = allocs.reduce((a, b) => a + (b.takenDays || 0), 0);
@@ -966,6 +980,7 @@ router.get('/admin/consumption', async (req, res) => {
         isOverQuota,
         utilizationPct: totalAllotted > 0 ? Math.round((totalTaken / totalAllotted) * 100) : 0,
         lateAlloc,
+        approvedHalfDays: halfDayMap.get(uid) || 0,
         pendingLeaves,
         pendingLates,
         pendingCount: pendingLeaves + pendingLates,
@@ -977,7 +992,7 @@ router.get('/admin/consumption', async (req, res) => {
       period: { year, month, monthName },
       report,
       leaveTypes,
-      policy: policy || { monthlyLateHours: 3.0, monthlyLateCount: 3 }
+      policy: policy || { monthlyLateCount: 3 }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -987,7 +1002,7 @@ router.get('/admin/consumption', async (req, res) => {
 // 13. HR Admin: Allot or update monthly leave quotas and late grace allowances
 router.post('/admin/allocate', async (req, res) => {
   try {
-    const { userId, applyToAll, leaveTypeId, allottedDays, allocations, lateHours, lateCount, allocatedBy } = req.body;
+    const { userId, applyToAll, leaveTypeId, allottedDays, allocations, lateCount, allocatedBy } = req.body;
     const { year, month } = getPeriod();
 
     const isGlobal = applyToAll === true || userId === 'all' || !userId;
@@ -1030,16 +1045,13 @@ router.post('/admin/allocate', async (req, res) => {
       }
 
       // 2. Process late grace allocation for all staff
-      if (lateHours !== undefined || lateCount !== undefined) {
-        const targetHours = lateHours !== undefined ? Math.max(0, Number(lateHours) || 0) : 3.0;
+      if (lateCount !== undefined) {
         const targetCount = lateCount !== undefined ? Math.max(0, Number(lateCount) || 0) : 3;
 
         for (const u of staffUsers) {
           let lateAlloc = await MonthlyLateAllocation.findOne({ userId: u._id, year, month });
           if (lateAlloc) {
-            lateAlloc.allottedHours = targetHours;
             lateAlloc.allottedCount = targetCount;
-            lateAlloc.remainingHours = Math.max(0, targetHours - lateAlloc.usedHours);
             lateAlloc.remainingCount = Math.max(0, targetCount - lateAlloc.usedCount);
             lateAlloc.allocatedBy = allocatedBy || 'HR Company-wide Quota Policy';
             await lateAlloc.save();
@@ -1048,11 +1060,8 @@ router.post('/admin/allocate', async (req, res) => {
               userId: u._id,
               year,
               month,
-              allottedHours: targetHours,
               allottedCount: targetCount,
-              usedHours: 0,
               usedCount: 0,
-              remainingHours: targetHours,
               remainingCount: targetCount,
               allocatedBy: allocatedBy || 'HR Company-wide Quota Policy'
             });
@@ -1061,7 +1070,6 @@ router.post('/admin/allocate', async (req, res) => {
 
         // Update default allocation policy
         await AllocationPolicy.updateMany({}, {
-          monthlyLateHours: targetHours,
           monthlyLateCount: targetCount
         });
       }
@@ -1119,15 +1127,12 @@ router.post('/admin/allocate', async (req, res) => {
       }
     }
 
-    if (lateHours !== undefined || lateCount !== undefined) {
+    if (lateCount !== undefined) {
       let lateAlloc = await MonthlyLateAllocation.findOne({ userId, year, month });
-      const targetHours = lateHours !== undefined ? Math.max(0, Number(lateHours) || 0) : (lateAlloc?.allottedHours ?? 3.0);
       const targetCount = lateCount !== undefined ? Math.max(0, Number(lateCount) || 0) : (lateAlloc?.allottedCount ?? 3);
 
       if (lateAlloc) {
-        lateAlloc.allottedHours = targetHours;
         lateAlloc.allottedCount = targetCount;
-        lateAlloc.remainingHours = Math.max(0, targetHours - lateAlloc.usedHours);
         lateAlloc.remainingCount = Math.max(0, targetCount - lateAlloc.usedCount);
         lateAlloc.allocatedBy = allocatedBy || 'HR Admin Manual Adjustment';
         await lateAlloc.save();
@@ -1136,11 +1141,8 @@ router.post('/admin/allocate', async (req, res) => {
           userId,
           year,
           month,
-          allottedHours: targetHours,
           allottedCount: targetCount,
-          usedHours: 0,
           usedCount: 0,
-          remainingHours: targetHours,
           remainingCount: targetCount,
           allocatedBy: allocatedBy || 'HR Admin Manual Adjustment'
         });
@@ -1218,18 +1220,15 @@ router.get('/admin/tracking', async (req, res) => {
     const approvedLates = lates.filter(l => l.status === 'approved');
 
     const totalDaysTaken = approvedLeaves.reduce((acc, l) => acc + (l.totalDays || 0), 0);
-    const totalLateMinutes = approvedLates.reduce((acc, l) => acc + (l.lateMinutes || 0), 0);
-    const totalLateHours = (totalLateMinutes / 60).toFixed(1);
 
     res.json({
       leaves,
       lates,
-      policy: policy || { lateHours: 3.0, lateCount: 3 },
+      policy: policy || { lateCount: 3 },
       summary: {
         activeStaffCount,
         totalLeavesTaken: totalDaysTaken,
-        totalLateIncidents: approvedLates.length,
-        totalLateHours
+        totalLateIncidents: approvedLates.length
       }
     });
   } catch (err) {

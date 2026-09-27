@@ -20,6 +20,8 @@ export const LoginPage = ({ onLoginSuccess }) => {
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetToken] = useState(() => new URLSearchParams(window.location.search).get('resetToken'));
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -72,12 +74,26 @@ export const LoginPage = ({ onLoginSuccess }) => {
     setErrorMsg('');
     setLoading(true);
     try {
-      const res = await api.forgotPassword({ email: forgotEmail, newPassword });
+      const res = await api.forgotPassword({ email: forgotEmail });
       setSuccessMsg(res.message);
-      setTimeout(() => {
-        setIsForgot(false);
-        setSuccessMsg('');
-      }, 1500);
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    if (newPassword.length < 8) return setErrorMsg('Password must be at least 8 characters.');
+    if (newPassword !== confirmPassword) return setErrorMsg('Passwords do not match.');
+    setLoading(true);
+    try {
+      const res = await api.resetPassword({ token: resetToken, newPassword });
+      setSuccessMsg(res.message);
+      window.history.replaceState({}, '', window.location.pathname);
+      setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
       setErrorMsg(err.message);
     } finally {
@@ -175,7 +191,21 @@ export const LoginPage = ({ onLoginSuccess }) => {
           </div>
         )}
 
-        {isForgot ? (
+        {resetToken ? (
+          <form onSubmit={handleResetPassword}>
+            <div className="form-field">
+              <label className="form-label">New Password</label>
+              <input type="password" className="input" placeholder="At least 8 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required autoFocus />
+            </div>
+            <div className="form-field">
+              <label className="form-label">Confirm Password</label>
+              <input type="password" className="input" placeholder="Re-enter new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '38px', marginTop: '6px' }} disabled={loading}>
+              {loading ? 'Updating...' : 'Set New Password'}
+            </button>
+          </form>
+        ) : isForgot ? (
           /* FORGOT PASSWORD FORM */
           <form onSubmit={handleForgot}>
             <div className="form-field">
@@ -191,25 +221,13 @@ export const LoginPage = ({ onLoginSuccess }) => {
               />
             </div>
 
-            <div className="form-field">
-              <label className="form-label">New Password</label>
-              <input 
-                type="password" 
-                className="input" 
-                placeholder="Enter new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-              />
-            </div>
-
             <button 
               type="submit" 
               className="btn btn-primary" 
               style={{ width: '100%', height: '38px', marginTop: '6px' }}
               disabled={loading}
             >
-              {loading ? 'Updating...' : 'Set New Password'}
+              {loading ? 'Sending...' : 'Send Reset Link'}
             </button>
 
             <div style={{ textAlign: 'center', marginTop: '14px' }}>

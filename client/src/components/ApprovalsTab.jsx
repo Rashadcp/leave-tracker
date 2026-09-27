@@ -425,7 +425,7 @@ export const ApprovalsTab = ({ currentUser, onActionSuccess }) => {
                     • Arrives at <strong>{req.expectedTime}</strong>
                   </span>
                   <span style={{ color: '#D97706', fontWeight: 600, marginLeft: '6px' }}>
-                    ({req.lateMinutes} mins late)
+                    (late arrival)
                   </span>
                 </div>
               </div>

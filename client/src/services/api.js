@@ -83,6 +83,17 @@ export const api = {
     return result;
   },
 
+  resetPassword: async (data) => {
+    const res = await apiFetch(`/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Failed to update password');
+    return result;
+  },
+
   // HR user registration approvals
   getPendingUsers: async () => {
     const res = await apiFetch(`/admin/pending-users`);

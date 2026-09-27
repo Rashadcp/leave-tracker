@@ -74,7 +74,7 @@ export const RequestDetailModal = ({ request, onClose }) => {
                   ? `${formatDate(request.startDate)} (Half Day • ${request.halfDayPeriod === 'first_half' ? 'Morning' : 'Afternoon'})`
                   : `${formatDateRange(request.startDate, request.endDate)} (${request.totalDays} day${request.totalDays > 1 ? 's' : ''})`
               ) : (
-                `Date: ${formatDate(request.date)} • Arrived at ${request.expectedTime} (${request.lateMinutes} mins late)`
+                `Date: ${formatDate(request.date)} • Arrived at ${request.expectedTime}`
               )}
             </span>
           </div>

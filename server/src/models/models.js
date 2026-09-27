@@ -12,6 +12,8 @@ const UserSchema = new mongoose.Schema({
   avatar: { type: String, default: '' },
   policyName: { type: String, default: 'Standard' },
   password: { type: String, default: 'password123' },
+  passwordResetToken: { type: String, default: null },
+  passwordResetExpiresAt: { type: Date, default: null },
   status: { type: String, enum: ['active', 'pending', 'rejected'], default: 'active' }
 }, { timestamps: true });
 
@@ -28,7 +30,6 @@ const AllocationPolicySchema = new mongoose.Schema({
   policyName: { type: String, required: true, unique: true },
   description: { type: String, default: '' },
   monthlyLeaveDays: { type: Number, default: 2.0 },
-  monthlyLateHours: { type: Number, default: 3.0 },
   monthlyLateCount: { type: Number, default: 3 }
 }, { timestamps: true });
 
@@ -53,11 +54,8 @@ const MonthlyLateAllocationSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   year: { type: Number, required: true },
   month: { type: Number, required: true },
-  allottedHours: { type: Number, default: 3.0 },
   allottedCount: { type: Number, default: 3 },
-  usedHours: { type: Number, default: 0 },
   usedCount: { type: Number, default: 0 },
-  remainingHours: { type: Number, default: 3.0 },
   remainingCount: { type: Number, default: 3 },
   allocatedBy: { type: String, default: 'System Policy' }
 }, { timestamps: true });
@@ -90,7 +88,6 @@ const LateRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   date: { type: String, required: true }, // YYYY-MM-DD
   expectedTime: { type: String, required: true }, // HH:mm
-  lateMinutes: { type: Number, required: true },
   reason: { type: String, required: true },
   status: { type: String, enum: ['pending', 'approved', 'rejected', 'cancelled'], default: 'pending' },
   approverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

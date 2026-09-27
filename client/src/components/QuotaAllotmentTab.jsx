@@ -4,7 +4,6 @@ import { Plus, Edit2, Trash2, X, Clock, Check } from 'lucide-react';
 
 export const QuotaAllotmentTab = ({ currentUser, onActionSuccess }) => {
   const [leaveTypes, setLeaveTypes] = useState([]);
-  const [lateHours, setLateHours] = useState('3.0');
   const [lateCount, setLateCount] = useState('3');
   const [loading, setLoading] = useState(true);
   const [savingLate, setSavingLate] = useState(false);
@@ -36,12 +35,10 @@ export const QuotaAllotmentTab = ({ currentUser, onActionSuccess }) => {
       setLeaveTypes(types || []);
 
       if (cons?.policy) {
-        setLateHours(String(cons.policy.monthlyLateHours ?? 3.0));
         setLateCount(String(cons.policy.monthlyLateCount ?? 3));
       } else {
         const firstStaff = cons?.report?.find(r => r.user.role === 'staff');
         if (firstStaff?.lateAlloc) {
-          setLateHours(String(firstStaff.lateAlloc.allottedHours ?? 3.0));
           setLateCount(String(firstStaff.lateAlloc.allottedCount ?? 3));
         }
       }
@@ -64,7 +61,6 @@ export const QuotaAllotmentTab = ({ currentUser, onActionSuccess }) => {
       await api.updateAllocation({
         applyToAll: true,
         userId: 'all',
-        lateHours: Math.max(0, Number(lateHours) || 0),
         lateCount: Math.max(1, Number(lateCount) || 1),
         allocatedBy: `${currentUser.name} (HR Admin)`
       });
@@ -340,29 +336,7 @@ export const QuotaAllotmentTab = ({ currentUser, onActionSuccess }) => {
         </div>
 
         <form onSubmit={handleSaveLateGrace}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Total Late Hours Allowed
-              </label>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="24"
-                  className="input"
-                  style={{ paddingRight: '70px', fontWeight: 600, fontSize: '0.9rem' }}
-                  value={lateHours}
-                  onChange={(e) => setLateHours(e.target.value)}
-                  required
-                />
-                <span style={{ position: 'absolute', right: '10px', fontSize: '0.74rem', color: 'var(--text-muted)', pointerEvents: 'none' }}>
-                  hours / month
-                </span>
-              </div>
-            </div>
-
+          <div style={{ marginBottom: '14px', maxWidth: '396px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Times Allowed Late

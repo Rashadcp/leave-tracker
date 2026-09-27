@@ -12,6 +12,31 @@ import { RequestDetailModal } from './components/RequestDetailModal';
 import { api } from './services/api';
 
 const AUTH_STORAGE_KEY = 'leave_auth_user';
+const HR_TABS = ['approvals', 'quotas', 'tracking'];
+const STAFF_TABS = ['dashboard', 'apply', 'requests'];
+
+const getRequestedTab = () => {
+  try {
+    return new URLSearchParams(window.location.search).get('tab');
+  } catch {
+    return null;
+  }
+};
+
+const hasResetToken = () => {
+  try {
+    return Boolean(new URLSearchParams(window.location.search).get('resetToken'));
+  } catch {
+    return false;
+  }
+};
+
+const getAllowedTab = (user, requestedTab) => {
+  const isAdmin = user?.role === 'admin';
+  const allowedTabs = isAdmin ? HR_TABS : STAFF_TABS;
+  const defaultTab = isAdmin ? 'approvals' : 'dashboard';
+  return allowedTabs.includes(requestedTab) ? requestedTab : defaultTab;
+};
 
 export function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -26,39 +51,15 @@ export function App() {
   const isHRAdmin = currentUser?.role === 'admin';
 
   const [dashboardData, setDashboardData] = useState(null);
-  const [activeTab, setActiveTab] = useState(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab');
-      if (tabParam) return tabParam;
-    } catch {}
-    return isHRAdmin ? 'approvals' : 'dashboard';
-  });
+  const [activeTab, setActiveTab] = useState(() => getAllowedTab(currentUser, getRequestedTab()));
   const [applyInitialMode, setApplyInitialMode] = useState('leave');
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [notification, setNotification] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
 
-  // Sync tab if user role changes or restores, respecting URL tab param
+  // Respect deep links only when that page is allowed for the signed-in role.
   useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab');
-      if (tabParam) {
-        setActiveTab(tabParam);
-        return;
-      }
-    } catch {}
-
-    if (isHRAdmin) {
-      if (['dashboard', 'apply', 'requests'].includes(activeTab)) {
-        setActiveTab('approvals');
-      }
-    } else {
-      if (['quotas', 'tracking'].includes(activeTab)) {
-        setActiveTab('dashboard');
-      }
-    }
+    setActiveTab(getAllowedTab(currentUser, getRequestedTab()));
   }, [currentUser?.role]);
 
   const loadData = async (user) => {
@@ -93,7 +94,9 @@ export function App() {
     } else {
       sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
     }
-    setActiveTab(user.role === 'admin' ? 'approvals' : 'dashboard');
+    // An HR user who arrived from an email keeps the requested approvals tab.
+    // A staff session is safely redirected to its dashboard instead.
+    setActiveTab(getAllowedTab(user, getRequestedTab()));
     showNotification(`Signed in as ${user.name}`);
   };
 
@@ -127,7 +130,7 @@ export function App() {
   };
 
   // If not logged in, show simple clean Login Page
-  if (!currentUser) {
+  if (!currentUser || hasResetToken()) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 

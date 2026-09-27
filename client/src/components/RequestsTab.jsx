@@ -128,7 +128,7 @@ export const RequestsTab = ({ currentUser, onSelectRequest }) => {
                               `${item.totalDays}d`
                             )
                           ) : (
-                            `+${item.lateMinutes}m`
+                            'Late arrival'
                           )}
                         </td>
                         <td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -188,7 +188,7 @@ export const RequestsTab = ({ currentUser, onSelectRequest }) => {
                           : `${formatDate(item.date)} (${item.expectedTime})`}
                       </strong>
                       <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>
-                        • {item.reqType === 'leave' ? (item.isHalfDay ? `0.5d (${item.halfDayPeriod === 'first_half' ? 'Morning' : 'Afternoon'})` : `${item.totalDays}d`) : `+${item.lateMinutes}m`}
+                        • {item.reqType === 'leave' ? (item.isHalfDay ? `0.5d (${item.halfDayPeriod === 'first_half' ? 'Morning' : 'Afternoon'})` : `${item.totalDays}d`) : 'Late arrival'}
                       </span>
                     </div>
 

@@ -87,6 +87,22 @@ const sendMail = async ({ to, subject, html, text }) => {
   }
 };
 
+export const sendPasswordResetEmail = async ({ employee, token }) => {
+  const resetUrl = `${getPortalUrl()}?resetToken=${encodeURIComponent(token)}`;
+  return sendMail({
+    to: employee.email,
+    subject: 'Reset your Winshine Leave Management password',
+    text: `Reset your password using this link: ${resetUrl}. This link expires in 30 minutes.`,
+    html: `<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1F2937;">
+      <h2 style="margin-bottom: 8px;">Reset your password</h2>
+      <p>Hello ${employee.name},</p>
+      <p>We received a request to reset your Winshine Leave Management password. This link expires in 30 minutes.</p>
+      <p style="margin: 24px 0;"><a href="${resetUrl}" style="background: #2563EB; color: #FFFFFF; padding: 11px 18px; border-radius: 6px; text-decoration: none; font-weight: 700;">Reset Password</a></p>
+      <p style="font-size: 12px; color: #6B7280;">If you did not request a password reset, you can safely ignore this email.</p>
+    </div>`
+  });
+};
+
 /**
  * Render email header with company logo on white background
  */
@@ -245,7 +261,7 @@ export const notifyHRNewLateRequest = async ({ employee, approver, lateRequest }
           </tr>
           <tr>
             <td style="padding: 8px 12px; background: #F9FAFB; border: 1px solid #E5E7EB; font-weight: bold;">Date & Expected Time:</td>
-            <td style="padding: 8px 12px; border: 1px solid #E5E7EB;">${formattedDate} at ${lateRequest.expectedTime} (+${lateRequest.lateMinutes} mins delay)</td>
+            <td style="padding: 8px 12px; border: 1px solid #E5E7EB;">${formattedDate} at ${lateRequest.expectedTime}</td>
           </tr>
           <tr>
             <td style="padding: 8px 12px; background: #F9FAFB; border: 1px solid #E5E7EB; font-weight: bold;">Reason:</td>

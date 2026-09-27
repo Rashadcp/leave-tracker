@@ -28,7 +28,6 @@ export const ApplyTab = ({ currentUser, dashboardData, initialMode = 'full', onS
   // Late State
   const [lateDate, setLateDate] = useState(todayStr);
   const [expectedTime, setExpectedTime] = useState('10:00');
-  const [lateMinutes, setLateMinutes] = useState(30);
 
   useEffect(() => {
     setRequestType(parseInitialMode(initialMode));
@@ -60,7 +59,7 @@ export const ApplyTab = ({ currentUser, dashboardData, initialMode = 'full', onS
     a => (a.leaveTypeId?._id || a.leaveTypeId) === selectedLeaveType
   );
   const remainingDays = currentAlloc ? currentAlloc.remainingDays : 0;
-  const remainingLateHours = dashboardData?.summary?.lateRemainingHours ?? 3.0;
+  const remainingLateCount = dashboardData?.summary?.lateRemainingCount ?? 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -73,7 +72,6 @@ export const ApplyTab = ({ currentUser, dashboardData, initialMode = 'full', onS
           userId: currentUser._id,
           date: lateDate,
           expectedTime,
-          lateMinutes: Number(lateMinutes),
           reason
         });
         onSuccess(res.message);
@@ -269,24 +267,8 @@ export const ApplyTab = ({ currentUser, dashboardData, initialMode = 'full', onS
               />
             </div>
 
-            <div className="form-field">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label className="form-label" style={{ margin: 0 }}>Minutes Late</label>
-                <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                  Allowed: <strong>{remainingLateHours}h left this month</strong>
-                </span>
-              </div>
-              <input 
-                type="number" 
-                className="input"
-                min="5" 
-                max="240"
-                step="5"
-                value={lateMinutes}
-                onChange={(e) => setLateMinutes(e.target.value)}
-                required
-                style={{ marginTop: '6px' }}
-              />
+            <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '-2px' }}>
+              {remainingLateCount} late report{remainingLateCount === 1 ? '' : 's'} remaining this month.
             </div>
           </>
         )}

@@ -53,9 +53,8 @@ export const seedDatabase = async () => {
     // 2. Default Allocation Policy
     await AllocationPolicy.create({
       policyName: 'Standard',
-      description: 'Standard employee allocation: 2.0 leave days + 3.0 late hours',
+      description: 'Standard employee allocation: 2.0 leave days + 3 late arrivals',
       monthlyLeaveDays: 2.0,
-      monthlyLateHours: 3.0,
       monthlyLateCount: 3
     });
 
