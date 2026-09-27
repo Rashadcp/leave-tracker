@@ -24,11 +24,22 @@ let leaveTypesCache = null;
 let leaveTypesCacheExpiry = 0;
 let holidaysCache = null;
 let holidaysCacheExpiry = 0;
+let pendingApprovalsCache = null;
+let pendingApprovalsCacheExpiry = 0;
+const adminConsumptionCache = new Map();
 const CACHE_TTL_MS = 60000; // 60 seconds
+const ADMIN_CACHE_TTL_MS = 30000;
 
 export const invalidateQuotaCache = () => {
   leaveTypesCache = null;
   leaveTypesCacheExpiry = 0;
+  adminConsumptionCache.clear();
+};
+
+const invalidateAdminRequestCaches = () => {
+  pendingApprovalsCache = null;
+  pendingApprovalsCacheExpiry = 0;
+  adminConsumptionCache.clear();
 };
 
 const apiFetch = async (endpoint, options = {}) => {
@@ -233,9 +244,13 @@ export const api = {
 
   // Approvals: Pending queue
   getPendingApprovals: async () => {
+    if (pendingApprovalsCache && Date.now() < pendingApprovalsCacheExpiry) return pendingApprovalsCache;
     const res = await apiFetch(`/approvals/pending`);
     if (!res.ok) throw new Error('Failed to fetch pending approvals');
-    return res.json();
+    const data = await res.json();
+    pendingApprovalsCache = data;
+    pendingApprovalsCacheExpiry = Date.now() + ADMIN_CACHE_TTL_MS;
+    return data;
   },
 
   // Approver decision (Approve/Reject)
@@ -247,18 +262,24 @@ export const api = {
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.error || 'Failed to submit decision');
+    invalidateAdminRequestCaches();
     return result;
   },
 
   // Admin Monthly Consumption
   getAdminConsumption: async (params = {}) => {
+    const cacheKey = JSON.stringify(params);
+    const cached = adminConsumptionCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) return cached.data;
     const query = new URLSearchParams();
     if (params.search) query.append('search', params.search);
     if (params.department && params.department !== 'All') query.append('department', params.department);
     const qs = query.toString() ? `?${query.toString()}` : '';
     const res = await apiFetch(`/admin/consumption${qs}`);
     if (!res.ok) throw new Error('Failed to load consumption metrics');
-    return res.json();
+    const data = await res.json();
+    adminConsumptionCache.set(cacheKey, { data, expiresAt: Date.now() + ADMIN_CACHE_TTL_MS });
+    return data;
   },
 
   // Admin quick allocation
@@ -270,6 +291,7 @@ export const api = {
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.error || 'Failed to update allocation');
+    invalidateAdminRequestCaches();
     return result;
   },
 
