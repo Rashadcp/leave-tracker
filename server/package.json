@@ -1,0 +1,19 @@
+{
+  "name": "leave-management-server",
+  "version": "1.0.0",
+  "description": "Backend API for Leave & Late Request Management System",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/seed.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongoose": "^8.10.1",
+    "nodemailer": "^10.0.10"
+  }
+}
